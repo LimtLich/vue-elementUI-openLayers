@@ -14,17 +14,19 @@
 </template>
 
 <script>
+
 import Map from "ol/map";
-import Contorl from "ol/control";
 import View from "ol/view";
 import TileLayer from "ol/layer/tile";
 import SourceLayer from "ol/source/tilewms";
 import Source from "ol/source/vector";
 import Vector from "ol/layer/vector";
+
+import Contorl from "ol/control";
+import Select from "ol/interaction/select";
+
 import Draw from "ol/interaction/draw";
 import Geom from "ol/geom/polygon";
-import Select from "ol/interaction/select";
-import Condition from "ol/events/condition";
 import Style from "ol/style/circle";
 import Feature from "ol/feature";
 import Sphere from "ol/sphere";
@@ -47,9 +49,13 @@ export default {
       })
     });
 
-    var source = new Source({ wrapX: false });
+    var source = new Source({
+      //平铺
+      wrapX: false
+    });
 
     var vector = new Vector({
+      //图层源
       source: source
     });
 
@@ -69,7 +75,7 @@ export default {
       })
     });
 
-    // a normal select interaction to handle click
+    // 点击选择交互
     var select = new Select();
     map.addInteraction(select);
     var selectedFeatures = select.getFeatures();
@@ -81,19 +87,23 @@ export default {
     });
 
     var typeSelect = document.getElementById("type");
-    var draw; // global so we can remove it later
+    var draw; // 全局，便于注销
+
     function addInteraction() {
       var value = typeSelect.value;
       if (value !== "None") {
         var geometryFunction;
-        //坐标，几何
+        //绘制属性函数
         geometryFunction = function(coordinates, opt_geometry) {
+          //获得起始点与终点
           var center = coordinates[0];
           var end = coordinates[1];
+          //坐标转像素
           var centerPixel = map.getPixelFromCoordinate(center);
           var endPixel = map.getPixelFromCoordinate(end);
+          //构建geometry实例
           var geometry = opt_geometry ? opt_geometry : new Geom(coordinates);
-          geometry = opt_geometry || new Geom(null);
+          //构成图片的坐标点
           geometry.setCoordinates([
             [
               map.getCoordinateFromPixel(centerPixel),
@@ -105,6 +115,7 @@ export default {
           ]);
           return geometry;
         };
+
         draw = new Draw({
           source: source,
           type: value,
@@ -112,7 +123,10 @@ export default {
         });
 
         //监听器
-        var drawListener = draw.on("drawend", function(e) {
+        var drawStartListener = draw.on("drawstart", function(e) {
+          // console.log("e:", e);
+        });
+        var drawEndListener = draw.on("drawend", function(e) {
           // console.log("e:", e);
         });
         var listenerKey = vector.getSource().on("change", function() {
@@ -122,18 +136,18 @@ export default {
         });
 
         //压力测试，生成若干数量图形
-        for (var i = 0; i < 30; i++) {
-          var wgs64Sphere = new Sphere(6378137);
-          var circle4326 = Geom.circular(
-            wgs64Sphere,
-            [113.46051 + i / 50000, 22.16087+i/20000],
-            6,
-            64
-          );
-          vector.getSource().addFeature(new Feature(circle4326));
-        }
+        // for (var i = 0; i < 5000; i++) {
+        //   var wgs64Sphere = new Sphere(6378137);
+        //   var circle4326 = Geom.circular(
+        //     wgs64Sphere,
+        //     [113.46051 + i / 50000, 22.16087 + i / 20000],
+        //     6,
+        //     64
+        //   );
+        //   vector.getSource().addFeature(new Feature(circle4326));
+        // }
 
-        map.addInteraction(draw);
+        // map.addInteraction(draw);
       }
     }
 
