@@ -4,16 +4,11 @@
     <form class="form-inline">
       <label>Shape type &nbsp;</label>
       <select id="type">
-        <option value="Square">Square</option>
-        <option value="Box">Box</option>
-        <option value="Star">Star</option>
+        <option value="Circle">Box</option>
         <option value="None">None</option>
       </select>
     </form>
-    <div>矢量地图Feature总数：
-      <span id="count"></span>
-    </div>
-    <div id="info">No boxes selected</div>
+    <div>使用 Alt+Shift+Drag 旋转地图</div>
   </div>
 
 </template>
@@ -29,15 +24,15 @@ import Vector from "ol/layer/vector";
 import Draw from "ol/interaction/draw";
 import Geom from "ol/geom/polygon";
 import Select from "ol/interaction/select";
-import DragBox from "ol/interaction/dragbox"
-import Condition from "ol/events/condition"
+import Condition from "ol/events/condition";
+import Style from "ol/style/circle";
+import Feature from "ol/feature";
+import Sphere from "ol/sphere";
 
 export default {
   name: "HelloWorld",
   data() {
-    return {
-      msg: "Welcome to Your Vue.js App"
-    };
+    return {};
   },
   mounted: function() {
     var raster = new TileLayer({
@@ -68,48 +63,21 @@ export default {
       layers: [raster, vector],
       view: new View({
         center: [113.45521, 22.16287],
-        zoom: 15,
+        zoom: 16,
         projection: "EPSG:4326",
-        rotation: Math.PI / 6
+        rotation: Math.PI / 1.25
       })
     });
+
     // a normal select interaction to handle click
     var select = new Select();
     map.addInteraction(select);
     var selectedFeatures = select.getFeatures();
 
-    // a DragBox interaction used to select features by drawing boxes
-    var dragBox = new DragBox({
-      condition: Condition.platformModifierKeyOnly
-    });
-
-    map.addInteraction(dragBox);
-
-    dragBox.on("boxend", function() {
-      // features that intersect the box are added to the collection of
-      // selected features
-      var extent = dragBox.getGeometry().getExtent();
-      vectorSource.forEachFeatureIntersectingExtent(extent, function(feature) {
-        selectedFeatures.push(feature);
-      });
-    });
-
-    // clear selection when drawing a new box and when clicking on the map
-    dragBox.on("boxstart", function() {
-      selectedFeatures.clear();
-    });
-
-    var infoBox = document.getElementById("info");
-
     selectedFeatures.on(["add", "remove"], function() {
       var names = selectedFeatures.getArray().map(function(feature) {
-        return feature.get("name");
+        //选中feature处理事件
       });
-      if (names.length > 0) {
-        infoBox.innerHTML = names.join(", ");
-      } else {
-        infoBox.innerHTML = "No countries selected";
-      }
     });
 
     var typeSelect = document.getElementById("type");
@@ -118,55 +86,57 @@ export default {
       var value = typeSelect.value;
       if (value !== "None") {
         var geometryFunction;
-        if (value === "Square") {
-          value = "Circle";
-          geometryFunction = Draw.createRegularPolygon(4);
-        } else if (value === "Box") {
-          value = "Circle";
-          geometryFunction = Draw.createBox();
-        } else if (value === "Star") {
-          value = "Circle";
-          geometryFunction = function(coordinates, geometry) {
-            if (!geometry) {
-              geometry = new Geom(null);
-            }
-            var center = coordinates[0];
-            var last = coordinates[1];
-            var dx = center[0] - last[0];
-            var dy = center[1] - last[1];
-            var radius = Math.sqrt(dx * dx + dy * dy);
-            var rotation = Math.atan2(dy, dx);
-            var newCoordinates = [];
-            var numPoints = 12;
-            for (var i = 0; i < numPoints; ++i) {
-              var angle = rotation + i * 2 * Math.PI / numPoints;
-              var fraction = i % 2 === 0 ? 1 : 0.5;
-              var offsetX = radius * fraction * Math.cos(angle);
-              var offsetY = radius * fraction * Math.sin(angle);
-              newCoordinates.push([center[0] + offsetX, center[1] + offsetY]);
-            }
-            newCoordinates.push(newCoordinates[0].slice());
-            geometry.setCoordinates([newCoordinates]);
-            return geometry;
-          };
-        }
+        //坐标，几何
+        geometryFunction = function(coordinates, opt_geometry) {
+          var center = coordinates[0];
+          var end = coordinates[1];
+          var centerPixel = map.getPixelFromCoordinate(center);
+          var endPixel = map.getPixelFromCoordinate(end);
+          var geometry = opt_geometry ? opt_geometry : new Geom(coordinates);
+          geometry = opt_geometry || new Geom(null);
+          geometry.setCoordinates([
+            [
+              map.getCoordinateFromPixel(centerPixel),
+              map.getCoordinateFromPixel([centerPixel[0], endPixel[1]]),
+              map.getCoordinateFromPixel(endPixel),
+              map.getCoordinateFromPixel([endPixel[0], centerPixel[1]]),
+              map.getCoordinateFromPixel(centerPixel)
+            ]
+          ]);
+          return geometry;
+        };
         draw = new Draw({
           source: source,
           type: value,
           geometryFunction: geometryFunction
         });
+
+        //监听器
+        var drawListener = draw.on("drawend", function(e) {
+          // console.log("e:", e);
+        });
         var listenerKey = vector.getSource().on("change", function() {
           if (vector.getSource().getState() === "ready") {
-            // 判定是否加载完成
-            document.getElementById(
-              "count"
-            ).innerHTML = vector.getSource().getFeatures().length;
-            vector.getSource().unset(listenerKey); // 注销监听器
+            // vector.getSource().unset(listenerKey); // 注销监听器
           }
         });
+
+        //压力测试，生成若干数量图形
+        for (var i = 0; i < 30; i++) {
+          var wgs64Sphere = new Sphere(6378137);
+          var circle4326 = Geom.circular(
+            wgs64Sphere,
+            [113.46051 + i / 50000, 22.16087+i/20000],
+            6,
+            64
+          );
+          vector.getSource().addFeature(new Feature(circle4326));
+        }
+
         map.addInteraction(draw);
       }
     }
+
     /**
        * Handle change event.
        */
@@ -196,5 +166,9 @@ li {
 }
 a {
   color: #42b983;
+}
+#map {
+  width: 90%;
+  height: 90%;
 }
 </style>
