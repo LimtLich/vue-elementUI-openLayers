@@ -147,7 +147,7 @@ export default {
         //   vector.getSource().addFeature(new Feature(circle4326));
         // }
 
-        // map.addInteraction(draw);
+        map.addInteraction(draw);
       }
     }
 
