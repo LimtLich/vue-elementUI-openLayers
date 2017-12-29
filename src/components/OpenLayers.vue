@@ -101,7 +101,7 @@ export default {
           //坐标转像素
           var centerPixel = map.getPixelFromCoordinate(center);
           var endPixel = map.getPixelFromCoordinate(end);
-          //构建geometry实例
+          //构建几何图形实例
           var geometry = opt_geometry ? opt_geometry : new Geom(coordinates);
           //构成图片的坐标点
           geometry.setCoordinates([
